@@ -2,11 +2,5 @@
   "name" : "codeanalysis",
   "version-string" : "1.0.0",
   "builtin-baseline" : "1ba9a2591f15af5900f2ce2b3e2bf31771e3ac48",
-  "dependencies" : [ {
-    "name" : "llvm",
-    "version>=" : "15.0.7#3"
-  }, {
-    "name" : "asio",
-    "version>=" : "1.24.0#1"
-  } ]
+  "dependencies" : [ ]
 }
