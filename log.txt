@@ -1,1 +1,6 @@
-true
+incVar=i
+condVar=i
+initVar=i
+incVar=i
+condVar=i
+initVar=i
