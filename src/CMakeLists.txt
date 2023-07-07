@@ -1,5 +1,6 @@
 FILE(GLOB SRC_FILES *.cpp)
-add_library(utils STATIC ${SRC_FILES})
+add_library(utils SHARED ${SRC_FILES})
+
 function(define_file_basename target)
     get_target_property(source_files ${target} SOURCES)
     foreach (sourcefile ${source_files})
@@ -10,3 +11,4 @@ function(define_file_basename target)
     endforeach ()
 endfunction()
 define_file_basename(utils)
+#ast操纵

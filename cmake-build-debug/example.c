@@ -1,9 +1,23 @@
 #include <stdio.h>
 #include "aa.h"
 
+//匿名枚举
+enum{
+  ea,
+  eb,
+  ec,
+  ed,
+  ee,
+};
+//结构体
 struct x{
   int a;
+  //属性
   float b;
+};
+struct y{
+  int ab;
+  float bc;
 };
 
 int main()
