@@ -1,5 +1,5 @@
 FILE(GLOB SRC_FILES *.cpp)
-add_library(utils SHARED ${SRC_FILES})
+add_library(utils STATIC ${SRC_FILES})
 
 function(define_file_basename target)
     get_target_property(source_files ${target} SOURCES)

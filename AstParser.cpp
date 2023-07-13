@@ -21,7 +21,7 @@ const std::string NAMED_DECL_OUTERMOST_ALL = "NAMED_DECL_OUTERMOST_ALL";
 
 namespace CodeAnalysis {
 ASTParser::ASTParser(int argc, const char **argv) :
-    common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv, llvm::cl::getGeneralCategory())),
+    common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv , llvm::cl::getGeneralCategory())),
     stream_string_buffer_(diagnostic_message_buffer_)
 {
 
@@ -29,6 +29,7 @@ ASTParser::ASTParser(int argc, const char **argv) :
 
 void ASTParser::initASTs(const std::vector<std::string> &files)
 {
+  const std::string &string = toString(common_options_parser_.takeError());
   clang::tooling::ClangTool tool{common_options_parser_->getCompilations(), files};
   tool.setDiagnosticConsumer(new TextDiagnosticPrinter(stream_string_buffer_, new DiagnosticOptions));
   tool.buildASTs(asts);
@@ -51,8 +52,9 @@ void ASTParser::parseAST()
   //      NAMED_DECL_VAR_GLOBAL);
   //  //匹配其他声明
   //  auto matcher_record = recordDecl
-  auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),hasAncestor(enumDecl()), hasAncestor((recordDecl()))))).bind(
-      NAMED_DECL_OUTERMOST_ALL);
+  auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),
+                                        hasAncestor(enumDecl()),
+                                        hasAncestor((recordDecl()))))).bind(NAMED_DECL_OUTERMOST_ALL);
   finder_.addMatcher(matcher, &handler_);
   for (const auto &ast: asts) {
     finder_.matchAST(ast->getASTContext());
@@ -72,6 +74,8 @@ std::string MatchHandler::getTypeAsString(const clang::NamedDecl *named_decl)
       return dyn_cast<FunctionDecl>(named_decl)->getReturnType().getAsString();
     case clang::Decl::Record:
       return dyn_cast<RecordDecl>(named_decl)->getTypeForDecl()->getTypeClassName();
+    case clang::Decl::Field:
+      return dyn_cast<FieldDecl>(named_decl)->getType().getAsString();
     default:
       return {};
   }

@@ -3,6 +3,7 @@ project(CodeAnalysis)
 set(CMAKE_CXX_STANDARD 20)
 
 list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.4.3/msvc2019_64/bin")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -18,10 +19,10 @@ find_package(Qt6 REQUIRED COMPONENTS
         Widgets
         )
 
-add_executable(main main.cpp mainwindow.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
+add_executable(main WIN32 main.cpp mainwindow.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
 
 target_link_libraries(main
-        PRIVATE
+        PUBLIC
         clangAST
         clangBasic
         clangFrontend
@@ -29,12 +30,12 @@ target_link_libraries(main
         clangTooling
         )
 target_link_libraries(main
-        PRIVATE
+        PUBLIC
         Qt::Gui Qt::Core Qt::Widgets
         )
 add_subdirectory(src)
 target_link_libraries(main
-        PRIVATE
+        PUBLIC
         utils
         )
 function(define_file_basename target)
@@ -47,3 +48,7 @@ function(define_file_basename target)
     endforeach ()
 endfunction()
 define_file_basename(main)
+
+if(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+endif()

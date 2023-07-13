@@ -5,7 +5,8 @@
 int main(int argc, const char **argv)
 {
   QApplication app(argc, const_cast<char **>(argv), QApplication::ApplicationFlags);
-  CodeAnalysis::ASTParser parser(argc,argv);
+  const char* argvx[] = {argv[0],"_"};
+  CodeAnalysis::ASTParser parser(2,argvx);
   MainWindow mw(parser);
   mw.show();
   return QApplication::exec();
