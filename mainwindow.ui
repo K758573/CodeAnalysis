@@ -193,7 +193,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </attribute>
       <column>
        <property name="text">
-        <string>#</string>
+        <string>变量名</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>类型</string>
        </property>
       </column>
       <item>
@@ -232,8 +237,15 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </property>
     <addaction name="action_find"/>
    </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>工具</string>
+    </property>
+    <addaction name="action_syntax_check"/>
+   </widget>
    <addaction name="menu"/>
    <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="action_open_file">
@@ -252,6 +264,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
    <property name="shortcut">
     <string>Ctrl+F</string>
+   </property>
+  </action>
+  <action name="action_syntax_check">
+   <property name="text">
+    <string>语法检查</string>
    </property>
   </action>
  </widget>

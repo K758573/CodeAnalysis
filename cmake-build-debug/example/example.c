@@ -9,6 +9,7 @@ enum{
   ed,
   ee,
 };
+int dalss;
 //结构体
 struct x{
   int a;

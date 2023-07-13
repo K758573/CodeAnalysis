@@ -10,6 +10,8 @@
 #include <QTreeWidgetItem>
 #include "SyntaxHighLighter.h"
 #include "finderwindow.h"
+#include "CodeAnalysis.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -20,24 +22,26 @@ class MainWindow :
 Q_OBJECT
 
 public:
-  explicit MainWindow(QWidget *parent = nullptr);
+  explicit MainWindow(CodeAnalysis::ASTParser &parser, QWidget *parent= nullptr);
   
   ~MainWindow() override;
 
 private slots:
   
   void onActionOpenDirClicked();
-
-  void onTreeWidgetItemClicked(const QModelIndex& index);
+  
+  void onTreeWidgetItemClicked(const QModelIndex &index);
   
   void onActionFindText();
+  
+  void onActionSyntaxCheck();
   
   void onTabIndexChanged(int index);
   
   void onCursorPositionChanged();
   
   void highLightAllWord(const QString &word);
-  
+
 private:
   bool recursiveTraverseDir(QDir *dir, QTreeWidgetItem *parent);
   
@@ -47,22 +51,31 @@ private:
   
   void readFileToCache(const QString &filepath);
   
+  void updateVarTree(const QString& filepath);
+  
+  void onTreeVarItemClicked(const QModelIndex& index);
   
 signals:
-  void print(const QString& msg);
   
+  void print(const QString &msg);
+  void clearMessage();
+
 private:
   Ui::MainWindow *ui;
   //根目录
   QDir root_dir_;
   QModelIndex root_index_;
   //文件缓存
-  QMap<QString,QString> cache_files_;
-  
+  QMap<QString, QString> cache_files_;
+  QVector<QString> file_list_;
   SyntaxHighLighter highLighter_;
   FinderWindow finder_window_;
-  
+  CodeAnalysis::ASTParser &parser_;
   QRect rect_;
+  
+  enum {
+    TAB_NOT_FOUND = -1
+  };
 };
 
 

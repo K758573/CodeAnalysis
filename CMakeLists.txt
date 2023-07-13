@@ -18,16 +18,16 @@ find_package(Qt6 REQUIRED COMPONENTS
         Widgets
         )
 
-add_executable(main main.cpp mainwindow.cpp SyntaxHighLighter.cpp finderwindow.cpp)
+add_executable(main main.cpp mainwindow.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
 
-#target_link_libraries(main
-#        PRIVATE
-#        clangAST
-#        clangBasic
-#        clangFrontend
-#        clangSerialization
-#        clangTooling
-#        )
+target_link_libraries(main
+        PRIVATE
+        clangAST
+        clangBasic
+        clangFrontend
+        clangSerialization
+        clangTooling
+        )
 target_link_libraries(main
         PRIVATE
         Qt::Gui Qt::Core Qt::Widgets

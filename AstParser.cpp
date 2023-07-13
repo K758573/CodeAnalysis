@@ -1,0 +1,172 @@
+//
+// Created by Shiro on 2023/7/11.
+//
+
+#include "AstParser.h"
+#include "CodeAnalysis.h"
+#include <filesystem>
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticIDs.h"
+#include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
+
+using namespace clang;
+using namespace llvm::cl;
+
+const std::string NAMED_DECL_FUNC = "NAMED_DECL_FUNC";
+const std::string NAMED_DECL_VAR_GLOBAL = "NAMED_DECL_VAR_GLOBAL";
+const std::string NAMED_DECL_OUTERMOST_ALL = "NAMED_DECL_OUTERMOST_ALL";
+
+namespace CodeAnalysis {
+ASTParser::ASTParser(int argc, const char **argv) :
+    common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv, llvm::cl::getGeneralCategory())),
+    stream_string_buffer_(diagnostic_message_buffer_)
+{
+
+}
+
+void ASTParser::initASTs(const std::vector<std::string> &files)
+{
+  clang::tooling::ClangTool tool{common_options_parser_->getCompilations(), files};
+  tool.setDiagnosticConsumer(new TextDiagnosticPrinter(stream_string_buffer_, new DiagnosticOptions));
+  tool.buildASTs(asts);
+  LOG("{}", stream_string_buffer_.str().str());
+  parseAST();
+}
+
+std::string ASTParser::syntaxCheck()
+{
+  return stream_string_buffer_.str().str();
+}
+
+void ASTParser::parseAST()
+{
+  using namespace clang::ast_matchers;
+  //  finder_.addMatcher(namedDecl(functionDecl().bind(NAMED_DECL_FUNC)), &handler_);
+  //匹配全局变量
+  //  auto matcher_global = varDecl(hasGlobalStorage(),
+  //                                unless(anyOf(hasAncestor((functionDecl())), hasAncestor((recordDecl()))))).bind(
+  //      NAMED_DECL_VAR_GLOBAL);
+  //  //匹配其他声明
+  //  auto matcher_record = recordDecl
+  auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),hasAncestor(enumDecl()), hasAncestor((recordDecl()))))).bind(
+      NAMED_DECL_OUTERMOST_ALL);
+  finder_.addMatcher(matcher, &handler_);
+  for (const auto &ast: asts) {
+    finder_.matchAST(ast->getASTContext());
+    const StringRef &string1 = ast->getASTFileName();
+    const StringRef &string2 = ast->getMainFileName();
+    const StringRef &string3 = ast->getOriginalSourceFileName();
+    
+  }
+}
+
+std::string MatchHandler::getTypeAsString(const clang::NamedDecl *named_decl)
+{
+  switch (named_decl->getKind()) {
+    case clang::Decl::Var:
+      return dyn_cast<VarDecl>(named_decl)->getType().getAsString();
+    case clang::Decl::Function:
+      return dyn_cast<FunctionDecl>(named_decl)->getReturnType().getAsString();
+    case clang::Decl::Record:
+      return dyn_cast<RecordDecl>(named_decl)->getTypeForDecl()->getTypeClassName();
+    default:
+      return {};
+  }
+}
+
+void MatchHandler::run(const ast_matchers::MatchFinder::MatchResult &result)
+{
+  auto manager = result.SourceManager;
+  if (auto decl = result.Nodes.getNodeAs<NamedDecl>(NAMED_DECL_OUTERMOST_ALL)) {
+    if (!manager->isWrittenInMainFile(decl->getLocation())) {
+      return;
+    }
+    std::filesystem::path p(manager->getFilename(decl->getLocation()).str());
+    LOG("向map中添加文件:{}", std::filesystem::absolute(p).string());
+    map_file_decl_[std::filesystem::absolute(p).string()].push_back(decl);
+  }
+}
+
+std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extractFunctionsAndVars(std::string filepath)
+{
+  using namespace std::filesystem;
+  filepath = absolute(path(filepath)).string();
+  std::map<const NamedDecl *, std::vector<const NamedDecl *>> map_decl_decls;
+  if (!map_file_decl_.contains(filepath)) {
+    return map_decl_decls;
+  }
+  for (const auto &item: map_file_decl_[filepath]) {
+    map_decl_decls[item] = std::vector<const NamedDecl *>();
+    switch (item->getKind()) {
+      case clang::Decl::Function: {
+        const auto *func_decl = dyn_cast<FunctionDecl>(item);
+        //内部的声明
+        for (const auto inner_decl: func_decl->decls()) {
+          if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
+            map_decl_decls[item].push_back(inner_decl_var);
+            LOG("变量:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+          }
+        }
+      }
+        break;
+      case clang::Decl::Record: {
+        const auto *record_decl = dyn_cast<RecordDecl>(item);
+        //内部的声明
+        for (const auto inner_decl: record_decl->decls()) {
+          if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
+            map_decl_decls[item].push_back(inner_decl_var);
+            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+          }
+        }
+        break;
+      }
+      case clang::Decl::Enum: {
+        const auto *enum_decl = dyn_cast<EnumDecl>(item);
+        //内部的声明
+        for (const auto inner_decl: enum_decl->decls()) {
+          if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
+            map_decl_decls[item].push_back(inner_decl_var);
+            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return map_decl_decls;
+}
+
+//std::vector<const VarDecl *> MatchHandler::getVarDeclsByFuncName(const std::string &file, const std::string &func_name)
+//{
+//  LOG("函数名:{}", func_name);
+//  std::vector<const VarDecl *> var_decls_;
+//  auto iter = map_file_decl_[file].begin();
+//  for (; iter != map_file_decl_[file].end(); ++iter) {
+//    auto temp_func_name = (*iter)->getNameAsString();
+//
+//    if ((*iter)->isThisDeclarationADefinition() && temp_func_name == func_name) {
+//      (*iter)->dumpColor();
+//      break;
+//    }
+//  }
+//  if (iter == map_file_decl_[file].end()) {
+//    LOG("文件内部未找到该函数");
+//    return var_decls_;
+//  }
+//  //    assert(iter != map_file_decl_[file].end());
+//  LOG("内部变量:");
+//  for (const auto inner_decl: (*iter)->decls()) {
+//    if (auto inner_decl_var = dyn_cast<VarDecl>(inner_decl)) {
+//      var_decls_.push_back(inner_decl_var);
+//      LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getType().getAsString());
+//    }
+//  }
+//  return var_decls_;
+//}
+
+} // CodeAnalysis

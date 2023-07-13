@@ -5,4 +5,5 @@
 #ifndef CODEANALYSIS_CODEANALYSIS_H
 #define CODEANALYSIS_CODEANALYSIS_H
 #include "src/Log.h"
+#include "AstParser.h"
 #endif //CODEANALYSIS_CODEANALYSIS_H
