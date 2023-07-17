@@ -18,10 +18,11 @@ using namespace llvm::cl;
 const std::string NAMED_DECL_FUNC = "NAMED_DECL_FUNC";
 const std::string NAMED_DECL_VAR_GLOBAL = "NAMED_DECL_VAR_GLOBAL";
 const std::string NAMED_DECL_OUTERMOST_ALL = "NAMED_DECL_OUTERMOST_ALL";
+const std::string CALL_EXPR_FUNC_CALL = "CALL_EXPR_FUNC_CALL";
 
 namespace CodeAnalysis {
 ASTParser::ASTParser(int argc, const char **argv) :
-    common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv , llvm::cl::getGeneralCategory())),
+    common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv, llvm::cl::getGeneralCategory())),
     stream_string_buffer_(diagnostic_message_buffer_)
 {
 
@@ -33,7 +34,6 @@ void ASTParser::initASTs(const std::vector<std::string> &files)
   clang::tooling::ClangTool tool{common_options_parser_->getCompilations(), files};
   tool.setDiagnosticConsumer(new TextDiagnosticPrinter(stream_string_buffer_, new DiagnosticOptions));
   tool.buildASTs(asts);
-  LOG("{}", stream_string_buffer_.str().str());
   parseAST();
 }
 
@@ -55,13 +55,14 @@ void ASTParser::parseAST()
   auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),
                                         hasAncestor(enumDecl()),
                                         hasAncestor((recordDecl()))))).bind(NAMED_DECL_OUTERMOST_ALL);
+  auto matcher2 = callExpr(callee(functionDecl())).bind(CALL_EXPR_FUNC_CALL);
   finder_.addMatcher(matcher, &handler_);
+  finder_.addMatcher(matcher2, &handler_);
   for (const auto &ast: asts) {
     finder_.matchAST(ast->getASTContext());
     const StringRef &string1 = ast->getASTFileName();
     const StringRef &string2 = ast->getMainFileName();
     const StringRef &string3 = ast->getOriginalSourceFileName();
-    
   }
 }
 
@@ -89,8 +90,16 @@ void MatchHandler::run(const ast_matchers::MatchFinder::MatchResult &result)
       return;
     }
     std::filesystem::path p(manager->getFilename(decl->getLocation()).str());
-    LOG("向map中添加文件:{}", std::filesystem::absolute(p).string());
+    //    LOG("向map中添加文件:{}", std::filesystem::absolute(p).string());
     map_file_decl_[std::filesystem::absolute(p).string()].push_back(decl);
+  }
+  if (auto call = result.Nodes.getNodeAs<CallExpr>(CALL_EXPR_FUNC_CALL)) {
+    if (!manager->isWrittenInMainFile(call->getBeginLoc())) {
+      return;
+    }
+    std::filesystem::path p(manager->getFilename(call->getBeginLoc()).str());
+    //    LOG("向map中添加文件:{}", std::filesystem::absolute(p).string());
+    map_file_call_[std::filesystem::absolute(p).string()].push_back(call);
   }
 }
 
@@ -111,7 +120,7 @@ std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extrac
         for (const auto inner_decl: func_decl->decls()) {
           if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
             map_decl_decls[item].push_back(inner_decl_var);
-            LOG("变量:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+            //            LOG("变量:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
           }
         }
       }
@@ -122,7 +131,7 @@ std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extrac
         for (const auto inner_decl: record_decl->decls()) {
           if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
             map_decl_decls[item].push_back(inner_decl_var);
-            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+            //            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
           }
         }
         break;
@@ -133,7 +142,7 @@ std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extrac
         for (const auto inner_decl: enum_decl->decls()) {
           if (auto inner_decl_var = dyn_cast<NamedDecl>(inner_decl)) {
             map_decl_decls[item].push_back(inner_decl_var);
-            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
+            //            LOG("变量名:{},类型:{}", inner_decl_var->getNameAsString(), inner_decl_var->getDeclKindName());
           }
         }
         break;
@@ -145,6 +154,34 @@ std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extrac
   return map_decl_decls;
 }
 
+std::vector<const clang::NamedDecl *> MatchHandler::decls(std::string filepath)
+{
+  using namespace std::filesystem;
+  filepath = absolute(path(filepath)).string();
+  return map_file_decl_[filepath];
+}
+
+std::vector<const clang::CallExpr *> MatchHandler::callees(std::string filepath)
+{
+  using namespace std::filesystem;
+  filepath = absolute(path(filepath)).string();
+  return map_file_call_[filepath];
+}
+
+uint32_t MatchHandler::getLineNumber(const clang::NamedDecl *named_decl)
+{
+  return named_decl->getASTContext().getSourceManager().getSpellingLineNumber(named_decl->getLocation());
+}
+
+uint32_t MatchHandler::getColumnNumber(const clang::NamedDecl *named_decl)
+{
+  return named_decl->getASTContext().getSourceManager().getSpellingColumnNumber(named_decl->getLocation());
+}
+
+uint32_t MatchHandler::getLineNumber(const clang::CallExpr *callee)
+{
+  return callee->getDirectCallee()->getASTContext().getSourceManager().getSpellingLineNumber(callee->getBeginLoc());
+}
 //std::vector<const VarDecl *> MatchHandler::getVarDeclsByFuncName(const std::string &file, const std::string &func_name)
 //{
 //  LOG("函数名:{}", func_name);

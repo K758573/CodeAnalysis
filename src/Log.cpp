@@ -4,4 +4,4 @@
 #include "Log.h"
 #include <cstdarg>
 
-std::ofstream log_file_out("../log.txt", std::ios::out);
+std::ofstream log_file_out("log.txt", std::ios::out);

@@ -33,6 +33,7 @@ MainWindow::MainWindow(CodeAnalysis::ASTParser &parser, QWidget *parent) :
   connect(&finder_window_, &FinderWindow::searchWord, this, &MainWindow::highLightAllWord);
   connect(ui->code_browser, &QTextBrowser::cursorPositionChanged, this, &MainWindow::onCursorPositionChanged);
   connect(ui->tree_var, &QTreeWidget::clicked, this, &MainWindow::onTreeVarItemClicked);
+  connect(ui->list_risk_function, &QListWidget::itemClicked, this, &MainWindow::highLightLine);
 }
 
 MainWindow::~MainWindow()
@@ -42,6 +43,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::onTabIndexChanged(int index)
 {
+  if (index < 0) {
+    return;
+  }
   auto path = ui->tab_editor->widget(index)->property(FILE_PATH_NAME_KEY).toString();
   LOG("点击tab_bar的绝对路径:{}", path.toStdString());
   if (!cache_files_.contains(path)) {
@@ -51,6 +55,8 @@ void MainWindow::onTabIndexChanged(int index)
   ui->tab_editor->setCurrentIndex(index);
   //文本内容更改，更新函数树
   updateVarTree(path);
+  //更新风险函数列表
+  updateRiskFunction(path);
 }
 
 void MainWindow::onActionOpenDirClicked()
@@ -149,7 +155,8 @@ void MainWindow::onTreeWidgetItemClicked(const QModelIndex &index)
     ui->tab_editor->addTab(wgt, file_info.fileName());
     tab_idx = findTabOnBar(file_info.fileName());
   }
-  emit ui->tab_editor->currentChanged(tab_idx);
+  emit
+  ui->tab_editor->currentChanged(tab_idx);
 }
 
 QString MainWindow::getAbsolutePathOfTree(const QModelIndex &index) const
@@ -190,21 +197,26 @@ void MainWindow::onCursorPositionChanged()
 {
   QTextCursor textCursor = ui->code_browser->textCursor();
   textCursor.select(QTextCursor::WordUnderCursor);
-  const QString &string = textCursor.selectedText();
-  if (string.contains('/')) {
-    return;
-  }
-  ui->code_browser->document();
-  emit print("选中单词" + string + ",位置:" + QString::number(textCursor.position()));
-  QList<QTextBrowser::ExtraSelection> extra_selections;
   QTextBrowser::ExtraSelection selection;
-  selection.format.setBackground(QColor(Qt::lightGray));
-  selection.cursor = QTextCursor(ui->code_browser->document()->find(QRegularExpression("\\b" + string + "\\b")));
-  while (selection.cursor != QTextCursor()) {
-    extra_selections.push_front(selection);
-    selection.cursor = ui->code_browser->document()->find(string, selection.cursor);
-  }
-  ui->code_browser->setExtraSelections(extra_selections);
+  selection.format.setBackground(QColor(Qt::darkGreen));
+  selection.cursor = textCursor;
+  ui->code_browser->setExtraSelections({selection});
+  ui->code_browser->ensureCursorVisible();
+  //  const QString &string = textCursor.selectedText();
+  //  if (string.contains('/')) {
+  //    return;
+  //  }
+  //  ui->code_browser->document();
+  //  emit print("选中单词" + string + ",位置:" + QString::number(textCursor.position()));
+  //  QList<QTextBrowser::ExtraSelection> extra_selections;
+  //  QTextBrowser::ExtraSelection selection;
+  //  selection.format.setBackground(QColor(Qt::lightGray));
+  //  selection.cursor = QTextCursor(ui->code_browser->document()->find(QRegularExpression("\\b" + string + "\\b")));
+  //  while (selection.cursor != QTextCursor()) {
+  //    extra_selections.push_front(selection);
+  //    selection.cursor = ui->code_browser->document()->find(string, selection.cursor);
+  //  }
+  //  ui->code_browser->setExtraSelections(extra_selections);
 }
 
 void MainWindow::highLightAllWord(const QString &word)
@@ -240,10 +252,10 @@ void MainWindow::updateVarTree(const QString &filepath)
     widget_item->setData(1, Qt::UserRole, QVariant::fromValue(decl->getKind()));
     widget_item->setText(0, QString::fromStdString(decl->getNameAsString()));
     widget_item->setText(1, QString::fromStdString(parser_.result().getTypeAsString(decl)));
-    LOG("添加到根:{},类型:{}", decl_decls.first->getNameAsString(), parser_.result().getTypeAsString(decl));
+    //    LOG("添加到根:{},类型:{}", decl_decls.first->getNameAsString(), parser_.result().getTypeAsString(decl));
     ui->tree_var->addTopLevelItem(widget_item);
     for (const auto &var: decl_decls.second) {
-      LOG("变量添加叶:{},类型{}", var->getNameAsString(), parser_.result().getTypeAsString(decl));
+      //      LOG("变量添加叶:{},类型{}", var->getNameAsString(), parser_.result().getTypeAsString(decl));
       auto child = new QTreeWidgetItem;
       child->setData(0, Qt::UserRole, QVariant::fromValue(var));
       child->setData(1, Qt::UserRole, QVariant::fromValue(var->getKind()));
@@ -254,31 +266,76 @@ void MainWindow::updateVarTree(const QString &filepath)
   }
 }
 
+void MainWindow::updateRiskFunction(const QString &filepath)
+{
+  ui->list_risk_function->clear();
+  const std::vector<const clang::CallExpr *> &callees = parser_.result().callees(filepath.toStdString());
+  
+  for (const auto &callee: callees) {
+    QString func_name = callee->getDirectCallee()->getName().data();
+    const RiskFunction &risk = db.selectByName(func_name);
+    if (risk.name.isEmpty()) {
+      continue;
+    }
+    auto line_number = parser_.result().getLineNumber(callee);
+    //    qDebug() << "函数调用:" << func_name << "行号" << line_number;
+    auto item = new QListWidgetItem;
+    item->setText(QString("%1 \t :[%2]").arg(risk.name).arg(line_number));
+    item->setData(Qt::UserRole, QVariant::fromValue(callee));
+    item->setData(Qt::WhatsThisRole, QVariant::fromValue(risk));
+    if (risk.level > 70) {
+      item->setBackground(QBrush(QColor(Qt::red)));
+    } else if (risk.level > 30) {
+      item->setBackground(QBrush(QColor(Qt::yellow)));
+    }else {
+      item->setBackground(QBrush(QColor(Qt::blue)));
+    }
+    ui->list_risk_function->addItem(item);
+    //    const clang::CallExpr *pExpr = item->data(Qt::UserRole).value<const clang::CallExpr *>();
+    //    const RiskFunction &function = item->data(Qt::WhatsThisRole).value<RiskFunction>();
+    //    LOG("callee:{},function:{}",(uint64_t)pExpr,function.name.toStdString());
+  }
+}
+
+
 void MainWindow::onTreeVarItemClicked(const QModelIndex &index)
 {
-  using clang::Decl;
-  using clang::VarDecl;
-  using clang::FunctionDecl;
-  auto item = static_cast<QTreeWidgetItem *>(index.internalPointer());
-  //  QTextCursor cursor;
-  auto kind = item->data(1, Qt::UserRole).value<clang::Decl::Kind>();
-  switch (kind) {
-    case clang::Decl::Kind::Var: {
-      auto var_decl =
-          clang::dyn_cast<VarDecl>(item->data(0, Qt::UserRole).value<const  clang::NamedDecl*>());
-      emit print(var_decl->getNameAsString().data());
-      //      var_decl->getASTContext().getSourceManager().getSpellingLoc().
-    }
-      break;
-    case clang::Decl::Kind::Function: {
-      auto func_decl =
-          clang::dyn_cast<FunctionDecl>(item->data(0, Qt::UserRole).value<const  clang::NamedDecl*>());
-      emit print(func_decl->getNameAsString().data());
-    }
-      break;
-    default:
-      break;
+  auto widget_item = static_cast<QTreeWidgetItem *>(index.internalPointer());
+  auto decl = widget_item->data(0, Qt::UserRole).value<const clang::NamedDecl *>();
+  highLightDecl(decl);
+}
+
+void MainWindow::highLightDecl(const clang::NamedDecl *decl)
+{
+  auto line = (int) parser_.result().getLineNumber(decl);
+  auto column = (int) parser_.result().getColumnNumber(decl);
+  auto textCursor = ui->code_browser->textCursor();
+  textCursor.movePosition(QTextCursor::Start);
+  textCursor.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, line - 1);
+  textCursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, column - 1);
+  textCursor.select(QTextCursor::WordUnderCursor);
+  ui->code_browser->setTextCursor(textCursor);
+  const QString &string = textCursor.selectedText();
+  QList<QTextBrowser::ExtraSelection> extra_selections;
+  QTextBrowser::ExtraSelection selection;
+  selection.format.setBackground(QColor(Qt::lightGray));
+  selection.cursor = QTextCursor(ui->code_browser->document()->find(QRegularExpression("\\b" + string + "\\b")));
+  while (selection.cursor != QTextCursor()) {
+    extra_selections.push_front(selection);
+    selection.cursor = ui->code_browser->document()->find(string, selection.cursor);
   }
-  
-  
+  ui->code_browser->setExtraSelections(extra_selections);
+  ui->code_browser->ensureCursorVisible();
+}
+
+void MainWindow::highLightLine(const QListWidgetItem *item)
+{
+  const auto callee = item->data(Qt::UserRole).value<const clang::CallExpr *>();
+  auto line = (int) parser_.result().getLineNumber(callee);
+  auto textCursor = ui->code_browser->textCursor();
+  textCursor.movePosition(QTextCursor::Start);
+  textCursor.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, line - 1);
+  textCursor.select(QTextCursor::LineUnderCursor);
+  ui->code_browser->setTextCursor(textCursor);
+  ui->code_browser->ensureCursorVisible();
 }

@@ -17,9 +17,10 @@ find_package(Qt6 REQUIRED COMPONENTS
         Core
         Gui
         Widgets
+        Sql
         )
 
-add_executable(main WIN32 main.cpp mainwindow.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
+add_executable(main main.cpp mainwindow.cpp RiskFunctionDb.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
 
 target_link_libraries(main
         PUBLIC
@@ -31,7 +32,7 @@ target_link_libraries(main
         )
 target_link_libraries(main
         PUBLIC
-        Qt::Gui Qt::Core Qt::Widgets
+        Qt::Gui Qt::Core Qt::Widgets Qt::Sql
         )
 add_subdirectory(src)
 target_link_libraries(main

@@ -27,7 +27,7 @@ public:
   signals:
   
   void searchWord(const QString &word);
-  
+  //风险
 private:
   Ui::FinderWindow *ui;
   SyntaxHighLighter& high_lighter_;

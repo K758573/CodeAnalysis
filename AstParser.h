@@ -30,18 +30,25 @@
 namespace CodeAnalysis {
 
 //保存AST树中的结构体，函数，变量，枚举等
-class ASTRecord{
+class ASTRecord
+{
   std::vector<const clang::FunctionDecl *> functions_;
-//  std::vector<const clang::VarDecl *> functions_;
-
+  //  std::vector<const clang::VarDecl *> functions_;
+  
 };
 
 class MatchHandler :
     public clang::ast_matchers::MatchFinder::MatchCallback
 {
-public:
+private:
   //从文件名到最外侧声明的映射
   std::map<std::string, std::vector<const clang::NamedDecl *>> map_file_decl_;
+  //文件名到函数调用的映射
+  std::map<std::string, std::vector<const clang::CallExpr *>> map_file_call_;
+public:
+  std::vector<const clang::NamedDecl *> decls(std::string filepath);
+  
+  std::vector<const clang::CallExpr *> callees(std::string filepath);
   
   //统计函数调用
   void run(const clang::ast_matchers::MatchFinder::MatchResult &result) override;
@@ -50,9 +57,16 @@ public:
   std::map<const clang::NamedDecl *, std::vector<const clang::NamedDecl *>>
   extractFunctionsAndVars(std::string filepath);
   
-//  std::vector<const clang::VarDecl *> getVarDeclsByFuncName(const std::string &file, const std::string &func_name);
-    ///获取类型字符串
-    std::string getTypeAsString(const clang::NamedDecl *named_decl);
+  //  std::vector<const clang::VarDecl *> getVarDeclsByFuncName(const std::string &file, const std::string &func_name);
+  ///获取类型字符串
+  std::string getTypeAsString(const clang::NamedDecl *named_decl);
+  
+  ///获取行号
+  uint32_t getLineNumber(const clang::NamedDecl *named_decl);
+  
+  uint32_t getColumnNumber(const clang::NamedDecl *named_decl);
+  
+  uint32_t getLineNumber(const clang::CallExpr *callee);
 };
 
 
@@ -65,7 +79,6 @@ public:
   ///初始化后，应该先调用该函数，生成文件的AST树
   void initASTs(const std::vector<std::string> &files);
   
-
   
   ///对所有AST进行语法检查
   std::string syntaxCheck();
@@ -78,8 +91,8 @@ public:
 private:
   //解析ast
   void parseAST();
-  
-  
+
+
 public:
   std::vector<std::unique_ptr<clang::ASTUnit>> asts;
 

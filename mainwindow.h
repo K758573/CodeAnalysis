@@ -8,9 +8,11 @@
 #include <QMainWindow>
 #include <QDir>
 #include <QTreeWidgetItem>
+#include <QListWidgetItem>
 #include "SyntaxHighLighter.h"
 #include "finderwindow.h"
 #include "CodeAnalysis.h"
+#include "RiskFunctionDb.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -40,8 +42,6 @@ private slots:
   
   void onCursorPositionChanged();
   
-  void highLightAllWord(const QString &word);
-
 private:
   bool recursiveTraverseDir(QDir *dir, QTreeWidgetItem *parent);
   
@@ -53,7 +53,15 @@ private:
   
   void updateVarTree(const QString& filepath);
   
+  void updateRiskFunction(const QString& filepath);
+  
   void onTreeVarItemClicked(const QModelIndex& index);
+  
+  void highLightAllWord(const QString &word);
+  
+  void highLightDecl(const clang::NamedDecl *decl);
+  
+  void highLightLine(const QListWidgetItem* item);
   
 signals:
   
@@ -72,7 +80,7 @@ private:
   FinderWindow finder_window_;
   CodeAnalysis::ASTParser &parser_;
   QRect rect_;
-  
+  RiskFunctionDB db;
   enum {
     TAB_NOT_FOUND = -1
   };
