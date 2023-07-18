@@ -7,6 +7,7 @@
 #include "mainwindow.h"
 #include "ui_MainWindow.h"
 #include "src/Log.h"
+#include "ReportGenerator.h"
 #include <QFileDialog>
 #include <QSyntaxHighlighter>
 
@@ -34,6 +35,7 @@ MainWindow::MainWindow(CodeAnalysis::ASTParser &parser, QWidget *parent) :
   connect(ui->code_browser, &QTextBrowser::cursorPositionChanged, this, &MainWindow::onCursorPositionChanged);
   connect(ui->tree_var, &QTreeWidget::clicked, this, &MainWindow::onTreeVarItemClicked);
   connect(ui->list_risk_function, &QListWidget::itemClicked, this, &MainWindow::highLightLine);
+  connect(ui->action_generate_report, &QAction::triggered, this, &MainWindow::onActionGenerateReport);
 }
 
 MainWindow::~MainWindow()
@@ -47,7 +49,7 @@ void MainWindow::onTabIndexChanged(int index)
     return;
   }
   auto path = ui->tab_editor->widget(index)->property(FILE_PATH_NAME_KEY).toString();
-  LOG("点击tab_bar的绝对路径:{}", path.toStdString());
+  //  LOG("点击tab_bar的绝对路径:{}", path.toStdString());
   if (!cache_files_.contains(path)) {
     readFileToCache(path);
   }
@@ -127,6 +129,18 @@ bool MainWindow::recursiveTraverseDir(QDir *dir, QTreeWidgetItem *parent)
     }
   });
   return ret;
+}
+
+void MainWindow::onActionGenerateReport()
+{
+  std::vector<const clang::CallExpr *> callees;
+  for (const auto &item: file_list_) {
+    const auto temp = parser_.result().callees(item.toStdString());
+    callees.insert(callees.end(),temp.begin(), temp.end());
+  }
+  ReportGenerator generator(callees, db_, parser_.result());
+  bool b = generator.generate();
+  LOG("文档生成状况:{}", b);
 }
 
 void MainWindow::onActionFindText()
@@ -270,24 +284,23 @@ void MainWindow::updateRiskFunction(const QString &filepath)
 {
   ui->list_risk_function->clear();
   const std::vector<const clang::CallExpr *> &callees = parser_.result().callees(filepath.toStdString());
-  
   for (const auto &callee: callees) {
-    QString func_name = callee->getDirectCallee()->getName().data();
-    const RiskFunction &risk = db.selectByName(func_name);
+    auto risk = db_.selectByName(parser_.result().getName(callee));
     if (risk.name.isEmpty()) {
       continue;
     }
+    risk.raw = callee;
     auto line_number = parser_.result().getLineNumber(callee);
     //    qDebug() << "函数调用:" << func_name << "行号" << line_number;
     auto item = new QListWidgetItem;
     item->setText(QString("%1 \t :[%2]").arg(risk.name).arg(line_number));
-    item->setData(Qt::UserRole, QVariant::fromValue(callee));
-    item->setData(Qt::WhatsThisRole, QVariant::fromValue(risk));
+    item->setData(Qt::UserRole, QVariant::fromValue(risk));
+    //    item->setData(Qt::WhatsThisRole, QVariant::fromValue(risk));
     if (risk.level > 70) {
       item->setBackground(QBrush(QColor(Qt::red)));
     } else if (risk.level > 30) {
       item->setBackground(QBrush(QColor(Qt::yellow)));
-    }else {
+    } else {
       item->setBackground(QBrush(QColor(Qt::blue)));
     }
     ui->list_risk_function->addItem(item);
@@ -330,7 +343,8 @@ void MainWindow::highLightDecl(const clang::NamedDecl *decl)
 
 void MainWindow::highLightLine(const QListWidgetItem *item)
 {
-  const auto callee = item->data(Qt::UserRole).value<const clang::CallExpr *>();
+  auto risk = item->data(Qt::UserRole).value<RiskFunction>();
+  const auto callee = risk.raw;
   auto line = (int) parser_.result().getLineNumber(callee);
   auto textCursor = ui->code_browser->textCursor();
   textCursor.movePosition(QTextCursor::Start);
@@ -339,3 +353,5 @@ void MainWindow::highLightLine(const QListWidgetItem *item)
   ui->code_browser->setTextCursor(textCursor);
   ui->code_browser->ensureCursorVisible();
 }
+
+

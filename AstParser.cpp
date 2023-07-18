@@ -182,6 +182,7 @@ uint32_t MatchHandler::getLineNumber(const clang::CallExpr *callee)
 {
   return callee->getDirectCallee()->getASTContext().getSourceManager().getSpellingLineNumber(callee->getBeginLoc());
 }
+
 //std::vector<const VarDecl *> MatchHandler::getVarDeclsByFuncName(const std::string &file, const std::string &func_name)
 //{
 //  LOG("函数名:{}", func_name);
@@ -209,5 +210,13 @@ uint32_t MatchHandler::getLineNumber(const clang::CallExpr *callee)
 //  }
 //  return var_decls_;
 //}
+std::string MatchHandler::getName(const clang::CallExpr *callee)
+{
+  return callee->getDirectCallee()->getNameAsString();
+}
 
+std::string MatchHandler::getFileName(const clang::CallExpr *callee)
+{
+  return callee->getDirectCallee()->getASTContext().getSourceManager().getFilename(callee->getBeginLoc()).str();
+}
 } // CodeAnalysis

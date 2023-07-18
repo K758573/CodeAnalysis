@@ -20,7 +20,7 @@ find_package(Qt6 REQUIRED COMPONENTS
         Sql
         )
 
-add_executable(main main.cpp mainwindow.cpp RiskFunctionDb.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
+add_executable(main main.cpp ReportGenerator.cpp mainwindow.cpp RiskFunctionDb.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
 
 target_link_libraries(main
         PUBLIC

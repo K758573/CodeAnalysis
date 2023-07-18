@@ -67,6 +67,9 @@ public:
   uint32_t getColumnNumber(const clang::NamedDecl *named_decl);
   
   uint32_t getLineNumber(const clang::CallExpr *callee);
+  
+  std::string getName(const clang::CallExpr *callee);
+  std::string getFileName(const clang::CallExpr *callee);
 };
 
 

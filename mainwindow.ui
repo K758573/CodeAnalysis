@@ -75,7 +75,7 @@
       <property name="childrenCollapsible">
        <bool>true</bool>
       </property>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <layout class="QVBoxLayout" name="verticalLayout_3">
         <item>
          <widget class="QTabWidget" name="tab_editor">
@@ -265,6 +265,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <string>工具</string>
     </property>
     <addaction name="action_syntax_check"/>
+    <addaction name="action_generate_report"/>
    </widget>
    <addaction name="menu"/>
    <addaction name="menu_2"/>
@@ -292,6 +293,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
   <action name="action_syntax_check">
    <property name="text">
     <string>语法检查</string>
+   </property>
+  </action>
+  <action name="action_generate_report">
+   <property name="text">
+    <string>生成报告</string>
    </property>
   </action>
  </widget>

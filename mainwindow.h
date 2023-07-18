@@ -38,6 +38,8 @@ private slots:
   
   void onActionSyntaxCheck();
   
+  void onActionGenerateReport();
+  
   void onTabIndexChanged(int index);
   
   void onCursorPositionChanged();
@@ -80,7 +82,7 @@ private:
   FinderWindow finder_window_;
   CodeAnalysis::ASTParser &parser_;
   QRect rect_;
-  RiskFunctionDB db;
+  RiskFunctionDB db_;
   enum {
     TAB_NOT_FOUND = -1
   };

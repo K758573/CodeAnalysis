@@ -52,6 +52,11 @@ RiskFunction RiskFunctionDB::selectByName(const QString &name) const
   return RiskFunction::fromSqlRecord(model.record(0));
 }
 
+RiskFunction RiskFunctionDB::selectByName(const std::string &name) const
+{
+  return selectByName(QString::fromStdString(name));
+}
+
 RiskFunction RiskFunction::fromSqlRecord(const QSqlRecord &record)
 {
   if (record.isEmpty()) {
@@ -67,7 +72,7 @@ RiskFunction RiskFunction::fromSqlRecord(const QSqlRecord &record)
 
 //void RiskFunctionDB::insertRecord(std::initializer_list<RiskFunction> funcs)
 //{
-//  QSqlTableModel model(nullptr, db);
+//  QSqlTableModel model(nullptr, db_);
 //  model.setTable(RiskFunction::RISK_FUNCTION_TABLE_NAME);
 //  model.select();
 //  QSqlRecord record = model.record();
