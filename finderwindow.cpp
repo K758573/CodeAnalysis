@@ -15,6 +15,7 @@ FinderWindow::FinderWindow(QWidget *parent, SyntaxHighLighter &high_lighter) :
   connect(ui->btn_find, &QPushButton::clicked, this, [this] {
     emit searchWord(ui->edit_content->text());
   });
+  connect(ui->edit_content, &QLineEdit::returnPressed, ui->btn_find, &QPushButton::click);
 }
 
 FinderWindow::~FinderWindow()

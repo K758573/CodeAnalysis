@@ -41,6 +41,10 @@ SyntaxHighLighter::SyntaxHighLighter(QTextDocument *parent) :
   rule.pattern = QRegularExpression(QStringLiteral("\\b[A-Za-z0-9_]+(?=\\()"));
   rule.format = functionFormat;
   highlightingRules.append(rule);
+  rule.pattern = QRegularExpression(QStringLiteral("(?<=\\.)[A-Za-z0-9_]+"));
+  memberAccessFormat.setForeground(QBrush(QColor(128,0,128)));
+  rule.format = memberAccessFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighLighter::highlightBlock(const QString &text)

@@ -36,6 +36,7 @@ bool ReportGenerator::generate()
     return false;
   }
   QTextStream qts(&file);
+  int score = 0;
   qts << MD_HEAD1 << "项目风险报告" << CRLF;
   QVector<RiskFunction> risk_high;
   QVector<RiskFunction> risk_mid;
@@ -53,21 +54,29 @@ bool ReportGenerator::generate()
     } else {
       risk_low.push_back(risk);
     }
+    score += risk.level;
   }
   qts << MD_LIST1 << "高风险函数个数:" << risk_high.count() << CRLF;
   qts << MD_LIST1 << "中风险函数个数:" << risk_mid.count() << CRLF;
   qts << MD_LIST1 << "低风险函数个数:" << risk_low.count() << CRLF;
   qts << CRLF;
-  auto writelist = [this,&qts](QVector<RiskFunction>& risks){
+  auto writelist = [this, &qts](QVector<RiskFunction> &risks) {
     for (const auto &risk: risks) {
-    qts << MD_LIST1 << risk.name << CRLF;
-    qts << MD_LIST2 << "所在位置:" << result_.getFileName(risk.raw).data() << ":" << result_.getLineNumber(risk.raw)
-        << CRLF;
-    qts << MD_LIST2 << "函数功能" << CRLF;
-    qts << MD_LIST3 << risk.description << CRLF;
-    qts << MD_LIST2 << "修改建议" << CRLF;
-    qts << MD_LIST3 << risk.suggestion << CRLF;
-  }
+      qts << MD_LIST1 << risk.name << CRLF;
+      qts << MD_LIST2 << "所在位置:" << result_.getFileName(risk.raw).data() << ":" << result_.getLineNumber(risk.raw)
+          << CRLF;
+      qts << MD_LIST2 << "函数功能" << CRLF;
+      if (!risk.description.isEmpty()) {
+        qts << MD_LIST3 << risk.description << CRLF;
+      }
+      qts << MD_LIST2 << "修改建议" << CRLF;
+      if (!risk.suggestion.isEmpty()) {
+        qts << MD_LIST3 << risk.suggestion << CRLF;
+      }
+    }
+  };
+  auto write_red = [](const QString &str) {
+    return QString(R"( <font color="red"> %1 </font> )").arg(str);
   };
   qts << MD_HEAD2 << "高风险函数列表" << CRLF;
   writelist(risk_high);
@@ -75,6 +84,15 @@ bool ReportGenerator::generate()
   writelist(risk_mid);
   qts << MD_HEAD2 << "低风险函数列表" << CRLF;
   writelist(risk_low);
+  qts << "风险评估结果:";
+  if (score > 300) {
+    qts << write_red("高风险");
+  } else if (score > 200) {
+    qts << write_red("中风险");
+  } else {
+    qts << write_red("低风险");
+  }
+  qts << CRLF;
   file.close();
   LOG("风险报告生成完毕");
   return true;

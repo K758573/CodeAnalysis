@@ -20,8 +20,9 @@ find_package(Qt6 REQUIRED COMPONENTS
         Sql
         )
 
-add_executable(main main.cpp ReportGenerator.cpp mainwindow.cpp RiskFunctionDb.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
-
+add_executable(main WIN32 main.cpp ReportGenerator.cpp mainwindow.cpp RiskFunctionDb.cpp SyntaxHighLighter.cpp finderwindow.cpp AstParser.cpp)
+add_executable(EncryptDatabase encrypt.cpp)
+target_link_libraries(EncryptDatabase PUBLIC Qt::Core utils)
 target_link_libraries(main
         PUBLIC
         clangAST
@@ -50,6 +51,6 @@ function(define_file_basename target)
 endfunction()
 define_file_basename(main)
 
-if(WIN32)
+if (WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-endif()
+endif ()

@@ -11,6 +11,7 @@
 #include <QSqlField>
 #include <QFile>
 #include <QSettings>
+#include "src/CipherUtils.h"
 
 const QString RISK_FUNCTION_TABLE_NAME = "risk_function";
 const QString RISK_FUNCTION_FIELD_NAME = "name";
@@ -32,14 +33,22 @@ RiskFunctionDB::RiskFunctionDB()
   QSettings settings(CONFIG_FILE_NAME, QSettings::IniFormat);
   QString hostname = settings.value(KEY_DATABASE_HOSTNAME).toString();
   QString username = settings.value(KEY_DATABASE_USERNAME).toString();
+  //对数据库账户进行解密
+  LOG("数据库账户解密中...");
+  username = QString::fromStdString(CipherUtils::Decrypt(username.toStdString()));
   QString password = settings.value(KEY_DATABASE_PASSWORD).toString();
+  //对数据库密码进行解密
+  LOG("数据库密码解密中...");
+  password = QString::fromStdString(CipherUtils::Decrypt(password.toStdString()));
   QString database = settings.value(KEY_DATABASE_DATABASE).toString();
   db.setHostName(hostname);
   db.setUserName(username);
   db.setPassword(password);
   db.setDatabaseName(database);
   if (!db.open()) {
-    LOG("数据库初始化失败");
+    LOG("数据库连接失败");
+  } else {
+    LOG("数据库连接成功");
   }
 }
 

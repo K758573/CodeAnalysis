@@ -25,12 +25,23 @@ ASTParser::ASTParser(int argc, const char **argv) :
     common_options_parser_(clang::tooling::CommonOptionsParser::create(argc, argv, llvm::cl::getGeneralCategory())),
     stream_string_buffer_(diagnostic_message_buffer_)
 {
-
+  LOG("初始化AST匹配器");
+  using namespace clang::ast_matchers;
+  auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),
+                                        hasAncestor(enumDecl()),
+                                        hasAncestor((recordDecl()))))).bind(NAMED_DECL_OUTERMOST_ALL);
+  auto matcher2 = callExpr(callee(functionDecl())).bind(CALL_EXPR_FUNC_CALL);
+  finder_.addMatcher(matcher, &handler_);
+  finder_.addMatcher(matcher2, &handler_);
 }
 
 void ASTParser::initASTs(const std::vector<std::string> &files)
 {
-  const std::string &string = toString(common_options_parser_.takeError());
+  //  const std::string &string = toString(common_options_parser_.takeError());
+  handler_.clear();
+  
+  asts.clear();
+  LOG("使用文件列表构建AST树");
   clang::tooling::ClangTool tool{common_options_parser_->getCompilations(), files};
   tool.setDiagnosticConsumer(new TextDiagnosticPrinter(stream_string_buffer_, new DiagnosticOptions));
   tool.buildASTs(asts);
@@ -44,7 +55,6 @@ std::string ASTParser::syntaxCheck()
 
 void ASTParser::parseAST()
 {
-  using namespace clang::ast_matchers;
   //  finder_.addMatcher(namedDecl(functionDecl().bind(NAMED_DECL_FUNC)), &handler_);
   //匹配全局变量
   //  auto matcher_global = varDecl(hasGlobalStorage(),
@@ -52,17 +62,13 @@ void ASTParser::parseAST()
   //      NAMED_DECL_VAR_GLOBAL);
   //  //匹配其他声明
   //  auto matcher_record = recordDecl
-  auto matcher = namedDecl(unless(anyOf(hasAncestor((functionDecl())),
-                                        hasAncestor(enumDecl()),
-                                        hasAncestor((recordDecl()))))).bind(NAMED_DECL_OUTERMOST_ALL);
-  auto matcher2 = callExpr(callee(functionDecl())).bind(CALL_EXPR_FUNC_CALL);
-  finder_.addMatcher(matcher, &handler_);
-  finder_.addMatcher(matcher2, &handler_);
+  LOG("进行AST查找");
   for (const auto &ast: asts) {
+    LOG("查找文件:{}", ast->getMainFileName().data());
     finder_.matchAST(ast->getASTContext());
-    const StringRef &string1 = ast->getASTFileName();
-    const StringRef &string2 = ast->getMainFileName();
-    const StringRef &string3 = ast->getOriginalSourceFileName();
+    //    const StringRef &string1 = ast->getASTFileName();
+    //    const StringRef &string2 = ast->getMainFileName();
+    //    const StringRef &string3 = ast->getOriginalSourceFileName();
   }
 }
 
@@ -77,6 +83,10 @@ std::string MatchHandler::getTypeAsString(const clang::NamedDecl *named_decl)
       return dyn_cast<RecordDecl>(named_decl)->getTypeForDecl()->getTypeClassName();
     case clang::Decl::Field:
       return dyn_cast<FieldDecl>(named_decl)->getType().getAsString();
+    case clang::Decl::Enum:
+      return dyn_cast<EnumDecl>(named_decl)->getTypeForDecl()->getTypeClassName();
+    case clang::Decl::EnumConstant:
+      return dyn_cast<EnumConstantDecl>(named_decl)->getType().getAsString();
     default:
       return {};
   }
@@ -106,11 +116,19 @@ void MatchHandler::run(const ast_matchers::MatchFinder::MatchResult &result)
 std::map<const NamedDecl *, std::vector<const NamedDecl *>> MatchHandler::extractFunctionsAndVars(std::string filepath)
 {
   using namespace std::filesystem;
-  filepath = absolute(path(filepath)).string();
+  LOG("提取变量和函数，文件路径:{}", filepath);
+  try {
+    filepath = absolute(path(filepath)).string();
+  } catch (const std::exception &ec) {
+    LOG("捕获错误:{}", ec.what());
+  }
+  LOG("提取变量和函数，转换后的文件路径:{}", filepath);
   std::map<const NamedDecl *, std::vector<const NamedDecl *>> map_decl_decls;
   if (!map_file_decl_.contains(filepath)) {
+    LOG("未找到文件");
     return map_decl_decls;
   }
+  LOG("提取函数和变量，数量{}", map_file_decl_[filepath].size());
   for (const auto &item: map_file_decl_[filepath]) {
     map_decl_decls[item] = std::vector<const NamedDecl *>();
     switch (item->getKind()) {
@@ -218,5 +236,11 @@ std::string MatchHandler::getName(const clang::CallExpr *callee)
 std::string MatchHandler::getFileName(const clang::CallExpr *callee)
 {
   return callee->getDirectCallee()->getASTContext().getSourceManager().getFilename(callee->getBeginLoc()).str();
+}
+
+void MatchHandler::clear()
+{
+  map_file_call_.clear();
+  map_file_decl_.clear();
 }
 } // CodeAnalysis

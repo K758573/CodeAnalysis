@@ -31,6 +31,7 @@ private:
     QTextCharFormat multiLineCommentFormat;
     QTextCharFormat quotationFormat;
     QTextCharFormat functionFormat;
+    QTextCharFormat memberAccessFormat;
     HighlightingRule searchRule_;
     
 //    QVector<QString>

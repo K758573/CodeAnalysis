@@ -65,6 +65,8 @@ private:
   
   void highLightLine(const QListWidgetItem* item);
   
+  void clearContains();
+  
 signals:
   
   void print(const QString &msg);
@@ -86,6 +88,8 @@ private:
   enum {
     TAB_NOT_FOUND = -1
   };
+  
+  void closeEvent(QCloseEvent *event) override;
 };
 
 

@@ -46,6 +46,8 @@ private:
   //文件名到函数调用的映射
   std::map<std::string, std::vector<const clang::CallExpr *>> map_file_call_;
 public:
+  void clear();
+  
   std::vector<const clang::NamedDecl *> decls(std::string filepath);
   
   std::vector<const clang::CallExpr *> callees(std::string filepath);

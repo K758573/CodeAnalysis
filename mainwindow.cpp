@@ -17,12 +17,11 @@ MainWindow::MainWindow(CodeAnalysis::ASTParser &parser, QWidget *parent) :
     QMainWindow(parent), ui(new Ui::MainWindow), finder_window_(nullptr, highLighter_), parser_(parser)
 {
   ui->setupUi(this);
-  ui->tree_file_browser->clear();
-  ui->tab_editor->clear();
-  ui->text_message->clear();
-  ui->tree_var->clear();
+  LOG("构造主窗口");
+  clearContains();
   highLighter_.setDocument(ui->code_browser->document());
   finder_window_.setWindowFlag(Qt::WindowStaysOnTopHint);
+  LOG("连接信号和槽");
   connect(this, &MainWindow::print, ui->text_message, &QTextBrowser::append);
   connect(this, &MainWindow::clearMessage, ui->text_message, &QTextBrowser::clear);
   connect(ui->action_open_dir, &QAction::triggered, this, &MainWindow::onActionOpenDirClicked);
@@ -38,6 +37,17 @@ MainWindow::MainWindow(CodeAnalysis::ASTParser &parser, QWidget *parent) :
   connect(ui->action_generate_report, &QAction::triggered, this, &MainWindow::onActionGenerateReport);
 }
 
+void MainWindow::clearContains()
+{
+  ui->tree_file_browser->clear();
+  ui->tab_editor->clear();
+  ui->text_message->clear();
+  ui->tree_var->clear();
+  ui->list_risk_function->clear();
+  file_list_.clear();
+  cache_files_.clear();
+}
+
 MainWindow::~MainWindow()
 {
   delete ui;
@@ -45,11 +55,14 @@ MainWindow::~MainWindow()
 
 void MainWindow::onTabIndexChanged(int index)
 {
+  if (ui->tab_editor->count() == 0) {
+    ui->code_browser->clear();
+  }
   if (index < 0) {
     return;
   }
   auto path = ui->tab_editor->widget(index)->property(FILE_PATH_NAME_KEY).toString();
-  //  LOG("点击tab_bar的绝对路径:{}", path.toStdString());
+  LOG("标签切换:{}", path.toStdString());
   if (!cache_files_.contains(path)) {
     readFileToCache(path);
   }
@@ -63,11 +76,13 @@ void MainWindow::onTabIndexChanged(int index)
 
 void MainWindow::onActionOpenDirClicked()
 {
-  //只打开一个文件夹
-  ui->tree_file_browser->clear();
-  file_list_.clear();
   //读取界面目录树
   auto dir_name = QFileDialog::getExistingDirectory(nullptr, "选择项目文件夹");
+  if (dir_name.isEmpty()) {
+    return;
+  }
+  //只打开一个文件夹
+  clearContains();
   LOG("选择的文件夹是:{}", dir_name.toStdString());
   root_dir_ = QDir(dir_name);
   auto root = new QTreeWidgetItem;
@@ -136,7 +151,7 @@ void MainWindow::onActionGenerateReport()
   std::vector<const clang::CallExpr *> callees;
   for (const auto &item: file_list_) {
     const auto temp = parser_.result().callees(item.toStdString());
-    callees.insert(callees.end(),temp.begin(), temp.end());
+    callees.insert(callees.end(), temp.begin(), temp.end());
   }
   ReportGenerator generator(callees, db_, parser_.result());
   bool b = generator.generate();
@@ -159,11 +174,14 @@ void MainWindow::onTreeWidgetItemClicked(const QModelIndex &index)
   auto path = qvariant_cast<QString>(index.data(Qt::UserRole));
   QFileInfo file_info(path);
   if (file_info.isDir()) {
+    LOG("点击的是文件");
     return;
   }
   //打开，显示文件
   int tab_idx = findTabOnBar(file_info.fileName());
+  LOG("查找标签位置:{}", tab_idx);
   if (TAB_NOT_FOUND == tab_idx) {
+    LOG("标签不存在，创建新标签");
     auto wgt = new QWidget;
     wgt->setProperty(FILE_PATH_NAME_KEY, path);
     ui->tab_editor->addTab(wgt, file_info.fileName());
@@ -203,6 +221,7 @@ void MainWindow::readFileToCache(const QString &filepath)
   if (file.isOpen()) {
     QTextStream qts(&file);
     cache_files_[filepath] = qts.readAll();
+    LOG("读取文件到缓存:{}", filepath.toStdString());
     file.close();
   }
 }
@@ -235,14 +254,14 @@ void MainWindow::onCursorPositionChanged()
 
 void MainWindow::highLightAllWord(const QString &word)
 {
-  emit print("搜索" + word + ",位置:");
+  //  emit print("搜索" + word + ",位置:");
   QList<QTextBrowser::ExtraSelection> extra_selections;
   QTextBrowser::ExtraSelection selection;
   selection.format.setBackground(QColor(Qt::cyan));
   selection.cursor = QTextCursor(ui->code_browser->document()->find(QRegularExpression(word)));
   while (selection.cursor != QTextCursor()) {
     extra_selections.push_front(selection);
-    selection.cursor = ui->code_browser->document()->find(word, selection.cursor);
+    selection.cursor = ui->code_browser->document()->find(QRegularExpression(word), selection.cursor);
   }
   ui->code_browser->setExtraSelections(extra_selections);
 }
@@ -258,7 +277,9 @@ void MainWindow::onActionSyntaxCheck()
 void MainWindow::updateVarTree(const QString &filepath)
 {
   ui->tree_var->clear();
+  LOG("更新代码结构树");
   auto map = parser_.result().extractFunctionsAndVars(filepath.toStdString());
+  LOG("提取函数和变量完成:{}",filepath.toStdString());
   for (const auto &decl_decls: map) {
     const auto decl = decl_decls.first;
     auto widget_item = new QTreeWidgetItem;
@@ -266,10 +287,10 @@ void MainWindow::updateVarTree(const QString &filepath)
     widget_item->setData(1, Qt::UserRole, QVariant::fromValue(decl->getKind()));
     widget_item->setText(0, QString::fromStdString(decl->getNameAsString()));
     widget_item->setText(1, QString::fromStdString(parser_.result().getTypeAsString(decl)));
-    //    LOG("添加到根:{},类型:{}", decl_decls.first->getNameAsString(), parser_.result().getTypeAsString(decl));
+    LOG("添加到根:{},类型:{}", decl_decls.first->getNameAsString(), parser_.result().getTypeAsString(decl));
     ui->tree_var->addTopLevelItem(widget_item);
     for (const auto &var: decl_decls.second) {
-      //      LOG("变量添加叶:{},类型{}", var->getNameAsString(), parser_.result().getTypeAsString(decl));
+      LOG("变量添加叶:{},类型{}", var->getNameAsString(), parser_.result().getTypeAsString(decl));
       auto child = new QTreeWidgetItem;
       child->setData(0, Qt::UserRole, QVariant::fromValue(var));
       child->setData(1, Qt::UserRole, QVariant::fromValue(var->getKind()));
@@ -283,12 +304,14 @@ void MainWindow::updateVarTree(const QString &filepath)
 void MainWindow::updateRiskFunction(const QString &filepath)
 {
   ui->list_risk_function->clear();
+  LOG("更新风险函数列表");
   const std::vector<const clang::CallExpr *> &callees = parser_.result().callees(filepath.toStdString());
   for (const auto &callee: callees) {
     auto risk = db_.selectByName(parser_.result().getName(callee));
     if (risk.name.isEmpty()) {
       continue;
     }
+    LOG("找到风险函数:{}", risk.name.toStdString());
     risk.raw = callee;
     auto line_number = parser_.result().getLineNumber(callee);
     //    qDebug() << "函数调用:" << func_name << "行号" << line_number;
@@ -331,11 +354,12 @@ void MainWindow::highLightDecl(const clang::NamedDecl *decl)
   const QString &string = textCursor.selectedText();
   QList<QTextBrowser::ExtraSelection> extra_selections;
   QTextBrowser::ExtraSelection selection;
-  selection.format.setBackground(QColor(Qt::lightGray));
-  selection.cursor = QTextCursor(ui->code_browser->document()->find(QRegularExpression("\\b" + string + "\\b")));
+  selection.format.setBackground(QColor(Qt::GlobalColor::green));
+  QRegularExpression reg = QRegularExpression(QString("\\b%1\\b").arg(string));
+  selection.cursor = QTextCursor(ui->code_browser->document()->find(reg));
   while (selection.cursor != QTextCursor()) {
     extra_selections.push_front(selection);
-    selection.cursor = ui->code_browser->document()->find(string, selection.cursor);
+    selection.cursor = ui->code_browser->document()->find(reg, selection.cursor);
   }
   ui->code_browser->setExtraSelections(extra_selections);
   ui->code_browser->ensureCursorVisible();
@@ -355,3 +379,15 @@ void MainWindow::highLightLine(const QListWidgetItem *item)
 }
 
 
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+  // 关闭其他窗口
+  for (QWidget *widget: QApplication::topLevelWidgets()) {
+    if (widget != this) {
+      widget->close();
+    }
+  }
+  
+  // 调用父类的 closeEvent() 函数
+  QMainWindow::closeEvent(event);
+}
